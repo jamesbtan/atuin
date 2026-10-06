@@ -3,43 +3,25 @@ use atuin_client::logs::FromSettings;
 use atuin_client::record::sqlite_store::SqliteStore;
 use atuin_client::settings::Settings;
 use atuin_client::theme;
-use atuin_common::logs::{self, LogConfig};
+use atuin_common::logs::LogConfig;
 use clap::Subcommand;
 use eyre::{Result, WrapErr};
 
 use crate::i18n::fl;
 use crate::logs::LogCtx;
 
-#[cfg(feature = "sync")]
-mod sync;
-
-#[cfg(feature = "sync")]
-mod account;
-
-#[cfg(feature = "daemon")]
-mod daemon;
-
 mod config;
 mod default_config;
 mod doctor;
 mod dotfiles;
 mod history;
-mod hook;
 mod import;
 mod info;
 mod init;
-mod internal;
 mod kv;
-#[cfg(feature = "daemon")]
-mod output;
-mod scripts;
 mod search;
-mod setup;
 mod stats;
 mod store;
-#[cfg(feature = "self-update")]
-mod update;
-mod wrapped;
 
 #[derive(Subcommand, Debug)]
 #[command(infer_subcommands = true)]
@@ -49,28 +31,12 @@ pub enum Cmd {
     #[command(about = fl!("cmd-search"))]
     Search(search::Cmd),
 
-    /// Work with captured command output
-    #[cfg(feature = "daemon")]
-    #[command(subcommand)]
-    Output(output::Cmd),
-
     #[command(about = fl!("cmd-stats"))]
     Stats(stats::Cmd),
-
-    #[cfg(feature = "sync")]
-    #[command(flatten)]
-    Sync(sync::Cmd),
-
-    #[command(about = fl!("cmd-account"))]
-    #[cfg(feature = "sync")]
-    Account(account::Cmd),
 
     /// Manipulate shell history
     #[command(subcommand)]
     History(history::Cmd),
-
-    #[command(about = fl!("cmd-setup"))]
-    Setup,
 
     #[command(about = fl!("cmd-init"))]
     Init(init::Cmd),
@@ -81,10 +47,6 @@ pub enum Cmd {
 
     #[command(about = fl!("cmd-doctor"))]
     Doctor,
-
-    #[cfg(feature = "self-update")]
-    #[command(about = fl!("cmd-update"))]
-    Update(update::Cmd),
 
     /// Get or set small key-value pairs
     #[command(subcommand)]
@@ -98,28 +60,6 @@ pub enum Cmd {
     #[command(subcommand)]
     Dotfiles(dotfiles::Cmd),
 
-    /// Manage your scripts with Atuin
-    #[command(subcommand)]
-    Scripts(scripts::Cmd),
-
-    #[command(about = fl!("cmd-hook"))]
-    Hook(hook::Cmd),
-
-    /// Run the AI assistant
-    #[cfg(feature = "ai")]
-    #[command(subcommand)]
-    Ai(atuin_ai::commands::Command),
-
-    #[cfg(feature = "ai")]
-    #[command(about = fl!("cmd-mcp"))]
-    Mcp,
-
-    #[command(about = fl!("cmd-wrapped"))]
-    Wrapped {
-        #[arg(help = fl!("arg-wrapped-year"))]
-        year: Option<i32>,
-    },
-
     #[command(about = fl!("cmd-default-config"))]
     DefaultConfig,
 
@@ -129,46 +69,10 @@ pub enum Cmd {
 
     #[command(about = fl!("cmd-info"))]
     Info,
-
-    #[cfg(feature = "daemon")]
-    #[command(about = fl!("cmd-daemon"))]
-    Daemon(daemon::Cmd),
-
-    /// Internal subcommands, not for direct use by users.
-    #[command(
-        subcommand,
-        hide = true,
-        name = "__internal",
-        help_template = "error: this command is not meant to be accessed directly",
-        disable_help_flag = true,
-        disable_help_subcommand = true
-    )]
-    Internal(internal::Cmd),
-
-    #[command(
-        hide = true,
-        name = "__internal_",
-        disable_help_flag = true,
-        disable_help_subcommand = true,
-        about = fl!("cmd-__internal_")
-    )]
-    InternalDecoy,
 }
 
 impl Cmd {
     pub fn run(self) -> Result<()> {
-        // Daemonize before creating the async runtime – fork() inside a live
-        // tokio runtime corrupts its internal state.
-        #[cfg(all(unix, feature = "daemon"))]
-        if let Self::Daemon(ref cmd) = self
-            && cmd.should_daemonize()
-        {
-            daemon::daemonize_current_process()?;
-        }
-
-        #[cfg(feature = "ai")]
-        let use_multi_thread_runtime = matches!(&self, Self::Ai(_));
-        #[cfg(not(feature = "ai"))]
         let use_multi_thread_runtime = false;
 
         let Some(future) = self.run_inner()? else {
@@ -195,29 +99,14 @@ impl Cmd {
     /// If the command was able to be handled synchronously, returns `Ok(None)`. Otherwise, returns
     /// `Ok(Some(future))` where `future` will run the command when awaited. Returns `Err` on error.
     fn run_inner(self) -> Result<Option<impl Future<Output = Result<()>>>> {
-        let run_internal = if let Self::Internal(cmd) = &self {
-            match cmd.run() {
-                Some(func) => Some(func),
-                None => return Ok(None),
-            }
-        } else {
-            None
-        };
-
         let settings = Settings::new().wrap_err("could not load client settings")?;
         let _logging = self
             .log_config(&settings)
-            .map(|c| LogCtx::try_enable("atuin", &c))
+            .map(|c| LogCtx::try_enable(&c))
             .transpose()
             .wrap_err("failed to enable logging")?;
 
-        Ok(Some(async {
-            if let Some(func) = run_internal {
-                func(settings).await
-            } else {
-                Box::pin(self.run_async(settings)).await
-            }
-        }))
+        Ok(Some(async { Box::pin(self.run_async(settings)).await }))
     }
 
     #[allow(clippy::too_many_lines)]
@@ -233,16 +122,9 @@ impl Cmd {
         // runs
         match self {
             Self::History(history) => return history.run(&settings).await,
-            Self::Hook(hook) => return hook.run(&settings).await,
             Self::Init(init) => return init.run(&settings).await,
             Self::Doctor => return doctor::run(&settings).await,
-            #[cfg(feature = "self-update")]
-            Self::Update(update) => return update.run(&settings).await,
             Self::Config(config) => return config.run(&settings).await,
-            Self::InternalDecoy => {
-                eprintln!("error: this command is not meant to be accessed directly");
-                std::process::exit(1);
-            }
             _ => {}
         }
 
@@ -256,19 +138,9 @@ impl Cmd {
         let theme = theme_manager.load_theme(theme_name.as_str(), settings.theme.max_depth);
 
         match self {
-            Self::Setup => setup::run(&settings).await,
             Self::Import(import) => import.run(&db).await,
             Self::Stats(stats) => stats.run(&db, &settings, theme).await,
             Self::Search(search) => search.run(db, &mut settings, sqlite_store, theme).await,
-
-            #[cfg(feature = "daemon")]
-            Self::Output(cmd) => cmd.run(&db, &settings, theme).await,
-
-            #[cfg(feature = "sync")]
-            Self::Sync(sync) => sync.run(settings, &db, sqlite_store).await,
-
-            #[cfg(feature = "sync")]
-            Self::Account(account) => account.run(settings, sqlite_store).await,
 
             Self::Kv(kv) => kv.run(&settings, &sqlite_store).await,
 
@@ -290,36 +162,9 @@ impl Cmd {
 
             Self::Wrapped { year } => wrapped::run(year, &db, &settings, sqlite_store, theme).await,
 
-            #[cfg(feature = "daemon")]
-            Self::Daemon(cmd) => cmd.run(settings, sqlite_store, db).await,
-
-            Self::History(_)
-            | Self::Hook(_)
-            | Self::Init(_)
-            | Self::Doctor
-            | Self::Config(_)
-            | Self::Internal(_)
-            | Self::InternalDecoy => {
+            Self::History(_) | Self::Init(_) | Self::Doctor | Self::Config(_) => {
                 unreachable!()
             }
-
-            #[cfg(feature = "self-update")]
-            Self::Update(_) => unreachable!(),
-
-            #[cfg(feature = "ai")]
-            Self::Ai(cli) => {
-                // Session commands talk to the daemon: start or replace it as history does,
-                // instead of failing against a stopped or stale one.
-                #[cfg(feature = "daemon")]
-                if matches!(cli, atuin_ai::commands::Command::Session(_)) {
-                    daemon::ready_client(&settings).await?;
-                }
-
-                atuin_ai::commands::run(cli, &settings).await
-            }
-
-            #[cfg(feature = "ai")]
-            Self::Mcp => Box::pin(atuin_ai::mcp::run(&db, &settings)).await,
         }
     }
 
@@ -330,17 +175,6 @@ impl Cmd {
             Self::Search(cmd) if cmd.is_interactive() => {
                 Some(LogConfig::from_settings(&settings.logs, &settings.logs.search))
             }
-
-            #[cfg(feature = "daemon")]
-            Self::Daemon(cmd) => Some(LogConfig {
-                file: logs::FileConfig::from_settings(&settings.logs, &settings.logs.daemon),
-                stderr: cmd.show_logs().then(logs::StderrConfig::verbose),
-            }),
-
-            #[cfg(feature = "ai")]
-            Self::Ai(cmd) => cmd.log_config(settings),
-
-            Self::Internal(cmd) => cmd.log_config(),
 
             _ => Some(LogConfig::stderr_only()),
         }
@@ -363,22 +197,7 @@ mod tests {
     }
 
     #[rstest]
-    #[cfg_attr(feature = "sync", case::login(&["login", "-u", "u", "--password", SECRET]))]
-    #[cfg_attr(feature = "sync", case::login_key(&["login", "-u", "u", "--key", SECRET]))]
-    #[cfg_attr(feature = "sync", case::login_totp(&["login", "-u", "u", "--totp-code", SECRET]))]
-    #[cfg_attr(feature = "sync", case::register(&["register", "-u", "u", "--password", SECRET]))]
-    #[cfg_attr(feature = "sync", case::account_login(&["account", "login", "--password", SECRET]))]
-    #[cfg_attr(feature = "sync", case::delete(&["account", "delete", "--password", SECRET]))]
-    #[cfg_attr(
-        feature = "sync",
-        case::change_current(&["account", "change-password", "--current-password", SECRET])
-    )]
-    #[cfg_attr(
-        feature = "sync",
-        case::change_new(&["account", "change-password", "--new-password", SECRET])
-    )]
     #[case::rekey(&["store", "rekey", SECRET])]
-    #[cfg_attr(feature = "ai", case::ai_token(&["ai", "inline", "--api-token", SECRET]))]
     fn debug_redacts_argv_secrets(#[case] args: &[&str]) {
         let cli = Cli::try_parse_from(std::iter::once("atuin").chain(args.iter().copied()))
             .expect("the argv parses");

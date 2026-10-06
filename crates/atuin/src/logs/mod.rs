@@ -8,53 +8,23 @@ use tracing_subscriber::fmt;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::util::TryInitError;
 
-mod otel;
-use otel::OtelCtx;
-pub use otel::OtelCtxEnableError;
-
 use crate::i18n::fl;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LogCtxEnableError {
-    #[error("{}", fl!("log-otel-collector-failed", error = .0.to_string()))]
-    OtelCtx(#[from] OtelCtxEnableError),
     #[error("{}", fl!("log-subscriber-init-failed", error = .0.to_string()))]
     Subscriber(#[from] TryInitError),
 }
 
 /// Application-level log context.
-///
-/// RAII object which must be kept alive for as long as you want to do logs through [`tracing`].
-///
-/// ## OpenTelemetry
-///
-/// OpenTelemetry traces can be enabled by passing an `ATUIN_OTEL=<url>` environment variable,
-/// which will publish spans to the given endpoint, eg.
-///
-/// ```bash
-/// ATUIN_OTEL=http://localhost:4318 atuin foo bar baz.
-/// ```
-///
-/// OpenTelemetry support must be compiled in via the `profiling-traced` feature; without it, setting
-/// `ATUIN_OTEL` is an error (see [`OtelCtx`]).
-///
-pub struct LogCtx {
-    /// Handle to open-telemetry traces. Kept alive because it's RAII.
-    ///
-    /// OTEL may be disabled, in which case this is [`Option::None`].
-    _otel: Option<OtelCtx>,
-}
+pub struct LogCtx;
 
 impl LogCtx {
     /// Try to enable the logging for atuin.
     ///
     /// TODO(markovejnovic): Clean up this [`LogConfig`] structure. It feels very out-of-place where
     /// it is.
-    #[must_use = "returns an RAII guard which is required for tracing support"]
-    pub fn try_enable(
-        service_name: &'static str,
-        config: &LogConfig,
-    ) -> Result<Self, LogCtxEnableError> {
+    pub fn try_enable(config: &LogConfig) -> Result<Self, LogCtxEnableError> {
         // ATUIN_LOG env var overrides config file level settings
         let filter: EnvFilter = std::env::var("ATUIN_LOG")
             .map_or_else(|_| get_base_filter(config), |s| filter::Builder::default().parse_lossy(s))
@@ -65,7 +35,7 @@ impl LogCtx {
         }
 
         // A misconfigured log file is non-fatal: drop the file layer and warn once
-        // the subscriber is up, so logging still works via stderr / otel.
+        // the subscriber is up, so logging still works via stderr.
         let file_layer = config.file.as_ref().map(|file| {
             let writer = make_file_writer(file)?;
             Ok::<_, FileWriterError>(
@@ -77,14 +47,7 @@ impl LogCtx {
             Err(e) => (None, Some(e)),
         };
 
-        let otel = OtelCtx::try_enable(service_name)?;
-        let otel_layer = otel.as_ref().map(|ctx| ctx.layer(service_name));
-
-        // The stderr layer is added last because its type varies with the timer
-        // dispatch below; the file and otel layers must be layered first so `base`
-        // has a single type shared by both branches (otherwise the otel layer's
-        // subscriber type `S` can't unify across the two stderr layer types).
-        let base = tracing_subscriber::registry().with(file_layer).with(otel_layer);
+        let base = tracing_subscriber::registry().with(file_layer);
         let show_time = matches!(
             config.stderr,
             Some(StderrConfig {
@@ -102,12 +65,12 @@ impl LogCtx {
                 .try_init()?;
         }
 
-        // Non-fatal: the subscriber is live now, so this reaches stderr/otel if configured.
+        // Non-fatal: the subscriber is live now, so this reaches stderr if configured.
         if let Some(e) = file_error {
             tracing::warn!("failed to initialize the log file: {e}");
         }
 
-        Ok(Self { _otel: otel })
+        Ok(Self)
     }
 }
 

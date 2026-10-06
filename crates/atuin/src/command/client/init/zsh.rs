@@ -34,19 +34,5 @@ bindkey -M vicmd 'k' atuin-up-search-vicmd";
         if options.enable_up_arrow {
             println!("{BIND_UP_ARROW}");
         }
-
-        #[cfg(feature = "ai")]
-        if options.enable_ai {
-            println!("{}", atuin_ai::shell::ZSH_INIT);
-        }
-
-        #[cfg(feature = "ai")]
-        if options.enable_ai_resume {
-            println!(
-                r"bindkey -M emacs '^]' atuin-ai-resume
-bindkey -M viins '^]' atuin-ai-resume-viins
-bindkey -M vicmd '^]' atuin-ai-resume-vicmd"
-            );
-        }
     }
 }

@@ -18,8 +18,7 @@ impl Purge {
             Ok(()) => println!("Local store purge completed OK"),
             Err(e) => println!("Failed to purge local store: {e:?}"),
         }
-        // Even a failed purge may have deleted some records, which a replay would not take out
-        // of the ai session index.
-        super::reset_ai_sessions_after(settings).await
+
+        Ok(())
     }
 }

@@ -6,16 +6,11 @@ use eyre::Result;
 
 use super::cursor::Cursor;
 
-#[cfg(feature = "daemon")]
-pub mod daemon;
 pub mod db;
 
 #[allow(unused)] // settings is only used if daemon feature is enabled
 pub fn engine(search_mode: SearchMode, settings: &Settings) -> AnySearchEngine {
     match search_mode {
-        #[cfg(feature = "daemon")]
-        SearchMode::DaemonFuzzy => Box::new(daemon::Search::new(settings)).into(),
-        #[cfg(not(feature = "daemon"))]
         SearchMode::DaemonFuzzy => {
             // Fall back to fuzzy mode if daemon feature is not enabled
             db::Search(DbSearchMode::Fuzzy).into()
@@ -100,6 +95,4 @@ impl<T: SearchEngine> SearchEngine for Box<T> {
 #[enum_dispatch(SearchEngine)]
 pub enum AnySearchEngine {
     Db(db::Search),
-    #[cfg(feature = "daemon")]
-    Daemon(Box<daemon::Search>),
 }

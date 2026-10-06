@@ -19,9 +19,6 @@ use tracing::instrument;
 struct ShellInfo {
     pub name: String,
 
-    // best-effort, not supported on all OSes
-    pub default: String,
-
     // Detect some shell plugins that the user has installed.
     // I'm just going to start with preexec/blesh
     pub plugins: Vec<String>,
@@ -165,12 +162,10 @@ impl ShellInfo {
 
     fn unknown() -> Self {
         let name = Shell::Unknown.to_string();
-        let default = Shell::default_shell().unwrap_or(Shell::Unknown).to_string();
         let preexec = Self::detect_preexec_framework(name.as_str());
 
         Self {
             name,
-            default,
             plugins: Vec::new(),
             preexec,
         }
@@ -193,13 +188,10 @@ impl ShellInfo {
 
         let plugins = ShellInfo::plugins(name.as_str(), parent);
 
-        let default = Shell::default_shell().unwrap_or(Shell::Unknown).to_string();
-
         let preexec = Self::detect_preexec_framework(name.as_str());
 
         Self {
             name,
-            default,
             plugins,
             preexec,
         }
@@ -243,54 +235,6 @@ impl SystemInfo {
     }
 }
 
-#[derive(Debug, Serialize)]
-struct SyncInfo {
-    pub auth_state: String,
-    pub auto_sync: bool,
-
-    pub last_sync: String,
-}
-
-impl SyncInfo {
-    pub async fn new(settings: &Settings) -> Self {
-        // Build auth state description from raw token state without calling
-        // resolve_sync_auth(), which has side effects (token migration cleanup)
-        // that a diagnostic command should not trigger.
-        let meta = Settings::meta_store().await.ok();
-        let has_hub_token = match &meta {
-            Some(m) => m
-                .hub_session_token()
-                .await
-                .ok()
-                .flatten()
-                .is_some_and(|t| atuin_client::meta::is_hub_token(&t)),
-            None => false,
-        };
-        let has_cli_token = match &meta {
-            Some(m) => m.session_token().await.ok().flatten().is_some(),
-            None => false,
-        };
-
-        let auth_state = if has_hub_token {
-            "Hub (authenticated)".into()
-        } else if settings.is_hub_sync() && has_cli_token {
-            "Hub (legacy token \u{2014} run 'atuin login' to upgrade)".into()
-        } else if !settings.is_hub_sync() && has_cli_token {
-            "Self-hosted (authenticated)".into()
-        } else {
-            "Not authenticated".into()
-        };
-
-        Self {
-            auth_state,
-            auto_sync: settings.auto_sync,
-            last_sync: Settings::last_sync()
-                .await
-                .map_or_else(|_| "no last sync".to_string(), |v| v.to_string()),
-        }
-    }
-}
-
 #[derive(Debug)]
 struct SettingPaths {
     db: PathBuf,
@@ -330,28 +274,14 @@ struct AtuinInfo {
     pub version: String,
     pub commit: String,
 
-    /// Whether the main Atuin sync server is in use
-    /// I'm just calling it Atuin Cloud for lack of a better name atm
-    pub sync: Option<SyncInfo>,
-
     pub sqlite_version: String,
 
     #[serde(skip)] // probably unnecessary to expose this
     pub setting_paths: SettingPaths,
-
-    pub daemon_enabled: bool,
 }
 
 impl AtuinInfo {
     pub async fn new(settings: &Settings) -> Self {
-        let logged_in = settings.logged_in().await.unwrap_or(false);
-
-        let sync = if logged_in {
-            Some(SyncInfo::new(settings).await)
-        } else {
-            None
-        };
-
         let sqlite_version = match Sqlite::in_memory(Duration::from_millis(100)).await {
             Ok(db) => {
                 db.sqlite_version().await.map_or_else(|_| "unknown".to_string(), |v| v.to_string())
@@ -362,10 +292,8 @@ impl AtuinInfo {
         Self {
             version: crate::VERSION.to_string(),
             commit: crate::SHA.to_string(),
-            sync,
             sqlite_version,
             setting_paths: SettingPaths::new(settings),
-            daemon_enabled: cfg!(feature = "daemon") && settings.daemon.enabled,
         }
     }
 }

@@ -396,57 +396,6 @@ pub type HighlightedString = HighlightedText<String>;
 pub type HighlightedStr<'a> = HighlightedText<&'a str>;
 pub type HighlightedCowStr<'a> = HighlightedText<Cow<'a, str>>;
 
-#[cfg(feature = "proto")]
-mod proto {
-    use thiserror::Error;
-
-    use super::{HighlightedString, HighlightedText, NewTextHighlighterError, TextHighlighter};
-
-    #[derive(Clone, PartialEq, Eq, Hash, prost::Message)]
-    pub struct HighlightedTextProto {
-        #[prost(uint32, tag = "1")]
-        pub open: u32,
-        #[prost(uint32, tag = "2")]
-        pub close: u32,
-        #[prost(string, tag = "3")]
-        pub raw: String,
-    }
-
-    #[derive(Debug, Error)]
-    pub enum FromHighlightedTextProtoError {
-        #[error("marker code point {0:#x} is not a valid char")]
-        InvalidMarker(u32),
-        #[error(transparent)]
-        Markers(#[from] NewTextHighlighterError),
-    }
-
-    impl<S: AsRef<str>> From<&HighlightedText<S>> for HighlightedTextProto {
-        fn from(value: &HighlightedText<S>) -> Self {
-            let [open, close] = value.highlighter.markers();
-            Self {
-                open: u32::from(open),
-                close: u32::from(close),
-                raw: value.data.as_ref().to_owned(),
-            }
-        }
-    }
-
-    impl TryFrom<HighlightedTextProto> for HighlightedString {
-        type Error = FromHighlightedTextProtoError;
-
-        fn try_from(value: HighlightedTextProto) -> Result<Self, Self::Error> {
-            let open = char::from_u32(value.open)
-                .ok_or(FromHighlightedTextProtoError::InvalidMarker(value.open))?;
-            let close = char::from_u32(value.close)
-                .ok_or(FromHighlightedTextProtoError::InvalidMarker(value.close))?;
-            Ok(TextHighlighter::with_markers([open, close])?.as_highlighted(value.raw))
-        }
-    }
-}
-
-#[cfg(feature = "proto")]
-pub use proto::{FromHighlightedTextProtoError, HighlightedTextProto};
-
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -833,50 +782,5 @@ mod tests {
             let want: Vec<&str> = hl.ranges().map(|r| &raw[r]).filter(|s| !s.is_empty()).collect();
             prop_assert_eq!(matches, want);
         }
-    }
-
-    #[cfg(feature = "proto")]
-    proptest! {
-        /// A highlighted text survives the round-trip through its proto: same markers, same raw.
-        #[test]
-        fn proto_round_trips(markers in distinct_markers(), text in nasty_string()) {
-            let hl = TextHighlighter::with_markers(markers).unwrap().as_highlighted(text.as_str());
-
-            let owned = HighlightedString::try_from(HighlightedTextProto::from(&hl)).unwrap();
-            prop_assert_eq!(owned.as_ref(), text.as_str());
-            prop_assert_eq!(owned.markers(), markers);
-        }
-    }
-
-    #[cfg(feature = "proto")]
-    #[rstest]
-    #[case::open_surrogate(0xD800, u32::from('»'))]
-    #[case::close_above_char_max(u32::from('«'), 0x0011_0000)]
-    fn proto_rejects_non_char_markers(#[case] open: u32, #[case] close: u32) {
-        let proto = HighlightedTextProto {
-            open,
-            close,
-            raw: "hi".to_owned(),
-        };
-        assert!(matches!(
-            HighlightedString::try_from(proto),
-            Err(FromHighlightedTextProtoError::InvalidMarker(_))
-        ));
-    }
-
-    #[cfg(feature = "proto")]
-    #[rstest]
-    fn proto_rejects_identical_markers() {
-        let proto = HighlightedTextProto {
-            open: u32::from('x'),
-            close: u32::from('x'),
-            raw: "x".to_owned(),
-        };
-        assert!(matches!(
-            HighlightedString::try_from(proto),
-            Err(FromHighlightedTextProtoError::Markers(NewTextHighlighterError::IdenticalMarkers(
-                _
-            )))
-        ));
     }
 }

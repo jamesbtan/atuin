@@ -1,7 +1,5 @@
 #![deny(unsafe_code)]
 
-#[cfg(feature = "ansi")]
-pub mod ansi;
 #[cfg(feature = "db")]
 pub mod db;
 pub mod docs;
@@ -9,11 +7,6 @@ pub mod encryption;
 pub mod filter;
 pub mod fs;
 pub mod futures;
-#[cfg(feature = "ai")]
-pub mod harnesstools;
-#[cfg(feature = "io")]
-pub mod io;
-pub mod json;
 pub mod logs;
 #[cfg(feature = "os")]
 pub mod os;
@@ -28,6 +21,4 @@ pub mod sync;
 #[cfg(feature = "test-utils")]
 pub mod test_utils;
 pub mod time;
-pub mod units;
-pub mod url;
 pub mod utils;

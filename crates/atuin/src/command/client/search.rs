@@ -274,8 +274,7 @@ impl Cmd {
                         eprintln!("deleting {}", entry.id);
                     }
 
-                    super::history::delete_history_entries(settings, &history_store, &db, entries)
-                        .await?;
+                    super::history::delete_history_entries(&history_store, &db, entries).await?;
 
                     entries = run_non_interactive(settings, opt_filter, &query, &db).await?;
                 }
@@ -332,16 +331,6 @@ async fn run_non_interactive(
         .await?;
 
     Ok(results)
-}
-
-#[instrument(level = "trace", skip_all, err)]
-pub async fn prepare_index(settings: &Settings) -> Result<()> {
-    use engines::AnySearchEngine;
-    #[cfg(feature = "daemon")]
-    if let AnySearchEngine::Daemon(mut search) = engines::engine(settings.search_mode(), settings) {
-        search.prepare_index().await?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]

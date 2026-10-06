@@ -12,26 +12,12 @@ repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
 
-[features]
-default = ["sync", "hub", "daemon"]
-sync = ["reqwest", "dep:reqwest-middleware"]
-hub = ["reqwest"]
-daemon = []
-check-update = []
-# Derive the protobuf enum traits on domain enums the daemon extern-paths into its codegen.
-proto = ["dep:prost"]
-# Statically link (vendor) OpenSSL for native-tls instead of using the system
-# libssl. Used for portable release artifacts; a no-op on macOS/Windows.
-vendored-tls = ["reqwest?/native-tls-vendored"]
-
 [dependencies]
-atuin-common = { workspace = true, features = ["ai", "os", "sqlite"] }
+atuin-common = { workspace = true, features = ["os", "sqlite"] }
 atuin-domain = { workspace = true }
 atuin-vt100 = { workspace = true }
 
-async-stream = { workspace = true }
 async-trait = { workspace = true }
-base64 = { workspace = true }
 clap = { workspace = true }
 config = { workspace = true }
 derive_more = { workspace = true }
@@ -43,15 +29,9 @@ fs-err = { workspace = true }
 futures = { workspace = true }
 interim = { workspace = true }
 itertools = { workspace = true }
-libsqlite3-sys = { workspace = true }
 memchr = { workspace = true }
 minspan = { workspace = true }
-notify = { workspace = true }
-prost = { workspace = true, optional = true }
-rand = { workspace = true }
 regex = { workspace = true }
-rmp-serde = { workspace = true }
-secrecy = { workspace = true }
 semver = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -60,27 +40,16 @@ serde_with = { workspace = true }
 shellexpand = { workspace = true }
 sql-builder = { workspace = true }
 sqlx = { workspace = true, features = ["sqlite", "regexp"] }
-rusqlite = { workspace = true }
-parking_lot = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true, features = ["macros", "formatting", "parsing"] }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
-unicode-normalization = { workspace = true }
 typed-builder = { workspace = true }
-url = { workspace = true }
 uuid = { workspace = true }
-xxhash-rust = { workspace = true }
-
-# encryption
-rusty_paserk = { workspace = true }
-rusty_paseto = { workspace = true }
 
 # sync
 indicatif = { workspace = true }
-reqwest = { workspace = true, optional = true }
-reqwest-middleware = { workspace = true, optional = true, features = ["json", "query"] }
 
 # theme
 crossterm = { workspace = true, features = ["serde"] }
@@ -88,21 +57,17 @@ palette = { workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 
-# packfile
-zstd = { workspace = true }
-
 [dev-dependencies]
 # This crate's tests require the `test-utils` feature in atuin-common.
 atuin-common = { workspace = true, features = ["test-utils"] }
 divan = { workspace = true }
 pretty_assertions = { workspace = true }
 proptest = { workspace = true }
-rmp-serde = { workspace = true }
+rand = { workspace = true }
 rstest = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 toml = { workspace = true }
-wiremock = { workspace = true }
 
 [[bench]]
 name = "benchmarks"

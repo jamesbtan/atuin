@@ -10,13 +10,9 @@ use easy_cast::Conv;
 /// half-open [`Range<usize>`] that is always valid to index that slice with.
 ///
 /// NOTE: Unlike Python, this is an **inclusive** range!
-#[cfg_attr(feature = "proto", derive(prost::Message))]
-#[cfg_attr(not(feature = "proto"), derive(Debug))]
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct PyStyleIdxRange {
-    #[cfg_attr(feature = "proto", prost(int64, tag = "1"))]
     pub start: i64,
-    #[cfg_attr(feature = "proto", prost(int64, tag = "2"))]
     pub end: i64,
 }
 

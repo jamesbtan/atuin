@@ -1,6 +1,4 @@
 pub mod lock;
-#[cfg(feature = "fs-watcher")]
-pub mod tree_watcher;
 
 use std::path::{Path, PathBuf};
 

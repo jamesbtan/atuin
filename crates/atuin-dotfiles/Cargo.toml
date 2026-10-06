@@ -17,7 +17,6 @@ atuin-common = { workspace = true }
 atuin-domain = { workspace = true }
 
 crypto_secretbox = { workspace = true }
-derive_more = { workspace = true }
 eyre = { workspace = true }
 rand = { workspace = true }
 rmp = { workspace = true }

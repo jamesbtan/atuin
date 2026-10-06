@@ -16,14 +16,12 @@ atuin-client = { workspace = true }
 atuin-common = { workspace = true, features = ["sqlite"] }
 atuin-domain = { workspace = true }
 
-derive_more = { workspace = true }
 eyre = { workspace = true }
 rmp = { workspace = true }
 semver = { workspace = true }
 sqlx = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
 typed-builder = { workspace = true }
 
 [dev-dependencies]

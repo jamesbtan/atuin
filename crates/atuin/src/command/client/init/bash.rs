@@ -18,11 +18,7 @@ fn write_static_init<W: Write>(writer: &mut W, options: &StaticInitOptions<'_>) 
     let (bind_ctrl_r, bind_up_arrow, bind_ai_resume) = if std::env::var("ATUIN_NOBIND").is_ok() {
         (false, false, false)
     } else {
-        (
-            options.enable_ctrl_r,
-            options.enable_up_arrow,
-            cfg!(feature = "ai") && options.enable_ai_resume,
-        )
+        (options.enable_ctrl_r, options.enable_up_arrow, false)
     };
 
     writeln!(writer, "{} && {{", BASH.include_guard)?;
@@ -41,11 +37,6 @@ fn write_static_init<W: Write>(writer: &mut W, options: &StaticInitOptions<'_>) 
     writeln!(writer, "__atuin_bind_up_arrow={bind_up_arrow}")?;
     writeln!(writer, "__atuin_bind_ai_resume={bind_ai_resume}")?;
     writeln!(writer, "{}", BASH.main)?;
-
-    #[cfg(feature = "ai")]
-    if options.enable_ai {
-        writeln!(writer, "{}", atuin_ai::shell::BASH_INIT)?;
-    }
 
     writeln!(writer, "}}") // end include guard
 }

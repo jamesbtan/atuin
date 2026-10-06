@@ -32,7 +32,7 @@ impl Capture {
             self.id = Some(id);
             self.ready = None;
             let settings = settings.clone();
-            self.task = Some(tokio::spawn(async move { load_output(id, &settings).await }));
+            self.task = Some(tokio::spawn(async move { load_output(id, &settings) }));
         }
 
         // Never await a pending request in the input loop: Esc must remain responsive.
@@ -76,42 +76,7 @@ impl Drop for Capture {
     }
 }
 
-#[cfg(feature = "daemon")]
-async fn load_output(id: HistoryId, settings: &Settings) -> LoadedCapture {
-    let result = tokio::time::timeout(std::time::Duration::from_secs(2), async {
-        let mut client = atuin_daemon::HistoryClient::from_settings(settings).await?;
-        client.get_command_output(id, vec![atuin_common::range::PyStyleIdxRange::new(0, -1)]).await
-    })
-    .await;
-
-    match result {
-        Ok(Ok(Some(output))) => {
-            let text = Output::parse(
-                &output
-                    .chunks
-                    .iter()
-                    .map(|chunk| chunk.content.as_str())
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            );
-
-            let status = if output.truncated {
-                "Output · capture truncated"
-            } else if text.is_empty() {
-                "Captured output is empty"
-            } else {
-                "Output"
-            };
-
-            Ok((text, status.into()))
-        }
-        Ok(Ok(None)) => Err("No output captured for this run"),
-        _ => Err(UNAVAILABLE),
-    }
-}
-
-#[cfg(not(feature = "daemon"))]
-async fn load_output(_id: HistoryId, _settings: &Settings) -> LoadedCapture {
+const fn load_output(_id: HistoryId, _settings: &Settings) -> LoadedCapture {
     Err("Output requires a build with daemon support")
 }
 
@@ -124,7 +89,7 @@ pub(super) struct Output {
 }
 
 impl Output {
-    #[cfg(any(feature = "daemon", test))]
+    #[cfg(test)]
     pub fn parse(capture: &str) -> Self {
         use ansi_to_tui::IntoText as _;
         use ratatui::style::Modifier;
@@ -157,11 +122,6 @@ impl Output {
             text,
             ..Self::default()
         }
-    }
-
-    #[cfg(feature = "daemon")]
-    pub fn is_empty(&self) -> bool {
-        self.text.lines.is_empty()
     }
 
     pub fn rows(&mut self, width: u16) -> &[Line<'static>] {
@@ -206,7 +166,7 @@ impl Output {
     }
 }
 
-#[cfg(any(feature = "daemon", test))]
+#[cfg(test)]
 fn plain_output(output: &str) -> String {
     vt100::capture::basic_formatted_to_plain(output)
         .collect::<String>()

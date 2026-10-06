@@ -3,12 +3,8 @@ use atuin_client::history::store::HistoryStore;
 use atuin_client::record::sqlite_store::SqliteStore;
 use atuin_client::settings::Settings;
 use atuin_common::encryption::paseto_v4;
-use atuin_scripts::store::ScriptStore;
 use clap::Args;
 use eyre::{Context as _, Result, bail};
-
-#[cfg(feature = "daemon")]
-use crate::command::client::daemon;
 
 #[derive(Args, Debug)]
 pub struct Rebuild {
@@ -31,16 +27,6 @@ impl Rebuild {
                 self.rebuild_history(settings, store.clone(), database).await?;
             }
 
-            "scripts" => {
-                self.rebuild_scripts(settings, store.clone()).await?;
-            }
-
-            // The daemon owns the sidecar, and rebuilds it.
-            "ai-session" => {
-                super::reset_ai_sessions(settings).await?;
-                println!("The daemon is rebuilding the ai session index");
-            }
-
             tag => {
                 bail!("unknown tag: {tag}");
             }
@@ -56,12 +42,6 @@ impl Rebuild {
         store: SqliteStore,
         database: &Sqlite,
     ) -> Result<()> {
-        #[cfg(feature = "daemon")]
-        if settings.daemon.enabled {
-            daemon::rebuild_history(settings).await?;
-            return Ok(());
-        }
-
         let encryption_key = paseto_v4::Key::try_load_from_path(&settings.key_path)
             .context("could not load encryption key")?;
 
@@ -69,22 +49,6 @@ impl Rebuild {
         let history_store = HistoryStore::new(store, host_id, encryption_key);
 
         history_store.build(database).await?;
-
-        Ok(())
-    }
-
-    async fn rebuild_scripts(&self, settings: &Settings, store: SqliteStore) -> Result<()> {
-        let encryption_key = paseto_v4::Key::try_load_from_path(&settings.key_path)
-            .context("could not load encryption key")?;
-        let host_id = Settings::host_id().await?;
-        let script_store = ScriptStore::new(store, host_id, encryption_key);
-        let database = atuin_scripts::database::Database::new(
-            settings.scripts.db_path.clone(),
-            std::time::Duration::from_secs(1),
-        )
-        .await?;
-
-        script_store.build(database).await?;
 
         Ok(())
     }

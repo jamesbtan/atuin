@@ -1,11 +1,9 @@
 //! Utilities for operating on processes.
 
-use std::ops::ControlFlow;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use rustix::io::Errno;
-use rustix::process::{self, Pid, Signal};
+use rustix::process::{self, Pid};
 
 /// Try to convert a [`u32`] PID into a typed [`Pid`].
 ///
@@ -13,53 +11,6 @@ use rustix::process::{self, Pid, Signal};
 /// expect [`Pid`].
 pub fn pid_from_u32(pid: u32) -> Option<Pid> {
     i32::try_from(pid).ok().and_then(rustix::process::Pid::from_raw)
-}
-
-/// Gracefully terminate the process via `SIGTERM`.
-///
-/// If the process does not gracefully terminate, it is forcefully killed via `SIGKILL`.
-pub async fn force_terminate(pid: Pid, timeout: Duration) -> Result<(), std::io::Error> {
-    let identity = process_start_time(pid);
-
-    let is_original_alive = || match identity {
-        Some(start_time) => process_start_time(pid) == Some(start_time),
-        None => is_alive(pid),
-    };
-
-    match process::kill_process(pid, Signal::TERM) {
-        Ok(()) => {}
-        Err(Errno::SRCH) => return Ok(()),
-        Err(errno) => return Err(errno.into()),
-    }
-
-    let exited = crate::os::process::EXIT_BACKOFF
-        .retry_sync(
-            || {
-                if is_original_alive() {
-                    ControlFlow::Continue(())
-                } else {
-                    ControlFlow::Break(())
-                }
-            },
-            timeout,
-        )
-        .await;
-
-    if exited.is_ok() {
-        return Ok(());
-    }
-
-    if !is_original_alive() {
-        return Ok(());
-    }
-
-    match process::kill_process(pid, Signal::KILL) {
-        Ok(()) => {}
-        Err(Errno::SRCH) => return Ok(()),
-        Err(errno) => return Err(errno.into()),
-    }
-
-    Ok(())
 }
 
 /// Check whether the given pid is alive.

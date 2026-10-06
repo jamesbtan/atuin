@@ -15,11 +15,6 @@ pub(crate) mod logs;
 #[cfg(feature = "client")]
 pub(crate) mod shell;
 
-#[cfg(feature = "sync")]
-mod print_error;
-#[cfg(feature = "sync")]
-mod sync;
-
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const SHA: &str = env!("GIT_HASH");
 

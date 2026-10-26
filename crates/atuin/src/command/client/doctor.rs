@@ -360,8 +360,12 @@ fn checks(info: &DoctorDump) {
     }
 }
 
+pub fn run(settings: &Settings) -> Result<()> {
+    super::block_on(run_async(settings))
+}
+
 #[instrument(level = "trace", skip_all, err)]
-pub async fn run(settings: &Settings) -> Result<()> {
+async fn run_async(settings: &Settings) -> Result<()> {
     println!("{}", "Atuin Doctor".bold());
     println!("Checking for diagnostics");
     let dump = DoctorDump::new(settings).await;

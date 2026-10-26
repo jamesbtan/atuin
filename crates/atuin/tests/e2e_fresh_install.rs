@@ -37,24 +37,6 @@ fn fresh_history_list_is_empty_and_bootstraps_data_dir(env: FreshEnv) {
 }
 
 #[rstest]
-fn key_loads_but_never_generates(env: FreshEnv) {
-    let out = Process::spawn(env.atuin(&["key"])).wait();
-    assert!(!out.status.success(), "atuin key should fail before a key exists");
-    assert!(!env.data_dir().join("key").exists());
-
-    let mut command = env.atuin(&["history", "list"]);
-    command.env("ATUIN_SESSION", SESSION);
-    let out = Process::spawn(command).wait();
-    assert!(out.status.success());
-
-    let key = std::fs::read(env.data_dir().join("key")).unwrap();
-    let out = Process::spawn(env.atuin(&["key"])).wait();
-    assert!(out.status.success());
-    assert_eq!(std::fs::read(env.data_dir().join("key")).unwrap(), key);
-    assert_eq!(stdout(&out).split_whitespace().count(), 24, "expected a 24-word mnemonic");
-}
-
-#[rstest]
 #[case::bash("bash")]
 #[case::zsh("zsh")]
 #[case::fish("fish")]

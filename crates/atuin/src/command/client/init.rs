@@ -128,7 +128,7 @@ impl Cmd {
     }
 
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(self, settings: &Settings) -> Result<()> {
+    pub fn run(self, settings: &Settings) -> Result<()> {
         if !settings.paths_ok() {
             eprintln!(
                 "Atuin settings paths are broken. Disabling atuin shell hooks. Run `atuin doctor` \

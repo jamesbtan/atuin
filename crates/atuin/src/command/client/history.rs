@@ -668,9 +668,13 @@ impl Cmd {
         Ok(())
     }
 
+    pub fn run(self, settings: &Settings) -> Result<()> {
+        super::block_on(self.run_async(settings))
+    }
+
     #[allow(clippy::too_many_lines)]
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(self, settings: &Settings) -> Result<()> {
+    async fn run_async(self, settings: &Settings) -> Result<()> {
         match self {
             Self::Start {
                 cmd_env,

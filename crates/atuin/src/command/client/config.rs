@@ -20,8 +20,12 @@ pub enum Cmd {
 }
 
 impl Cmd {
+    pub fn run(self, settings: &Settings) -> Result<()> {
+        super::block_on(self.run_async(settings))
+    }
+
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(self, settings: &Settings) -> Result<()> {
+    async fn run_async(self, settings: &Settings) -> Result<()> {
         match self {
             Self::Get(get) => get.run(settings).await,
             Self::Set(set) => set.run(settings).await,

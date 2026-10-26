@@ -13,12 +13,10 @@ use crate::logs::LogCtx;
 mod config;
 mod default_config;
 mod doctor;
-mod dotfiles;
 mod history;
 mod import;
 mod info;
 mod init;
-mod kv;
 mod search;
 mod stats;
 mod store;
@@ -65,17 +63,9 @@ pub enum AsyncCmd {
     #[command(subcommand)]
     Import(import::Cmd),
 
-    /// Get or set small key-value pairs
-    #[command(subcommand)]
-    Kv(kv::Cmd),
-
     /// Manage the atuin data store
     #[command(subcommand)]
     Store(store::Cmd),
-
-    /// List legacy synced dotfiles data
-    #[command(subcommand)]
-    Dotfiles(dotfiles::Cmd),
 }
 
 impl AsyncCmd {
@@ -93,8 +83,6 @@ impl AsyncCmd {
                 Self::Search(search) => search.run(db, &mut settings, store, theme).await,
                 Self::Stats(stats) => stats.run(&db, &settings, theme).await,
                 Self::Store(store_cmd) => store_cmd.run(&settings, &db, store).await,
-                Self::Kv(kv) => kv.run(&settings, &store).await,
-                Self::Dotfiles(dotfiles) => dotfiles.run(&settings, store).await,
             }
         })
     }

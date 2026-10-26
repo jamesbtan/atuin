@@ -219,9 +219,7 @@ dependencies = [
  "atuin-client",
  "atuin-common",
  "atuin-domain",
- "atuin-dotfiles",
  "atuin-history",
- "atuin-kv",
  "atuin-pty-proxy",
  "atuin-vt100",
  "clap",
@@ -403,23 +401,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "atuin-dotfiles"
-version = "18.23.0"
-dependencies = [
- "atuin-client",
- "atuin-common",
- "atuin-domain",
- "crypto_secretbox",
- "eyre",
- "rand 0.8.7",
- "rmp",
- "rstest",
- "serde",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "atuin-history"
 version = "18.23.0"
 dependencies = [
@@ -432,23 +413,6 @@ dependencies = [
  "serde",
  "time",
  "unicode-segmentation",
-]
-
-[[package]]
-name = "atuin-kv"
-version = "18.23.0"
-dependencies = [
- "atuin-client",
- "atuin-common",
- "atuin-domain",
- "eyre",
- "rmp",
- "rstest",
- "semver",
- "sqlx",
- "tokio",
- "tracing",
- "typed-builder",
 ]
 
 [[package]]
